@@ -86,11 +86,45 @@ isRuntimeShaderSupported = Build.VERSION.SDK_INT >= 33
 ```
 
 `render/effects/RenderEffectKt` 的 `effect(...)` / `runtimeShaderEffect(...)` 在开关为 false 时
-直接 `return`，不会构造 AGSL 的 `RuntimeShader`。所以在 Android 12（API 31）与 12L（API 32）上：
+直接 `return`，不会构造 AGSL 的 `RuntimeShader`。**但这只覆盖了走这两个 helper 的路径**：
+GlassSurface / 导航材料 / 菜单形变 / 按压高光里还有若干 `new android.graphics.RuntimeShader(...)`
+是没有逐处判断的，31/32 上会 `NoClassDefFoundError` / `NoSuchMethodError`，表现就是**一打开就闪退**。
 
-* `RenderEffect` 模糊可用（31 起就是平台 API）；
-* AGSL 折射/色散（`RuntimeShader`、`createRuntimeShaderEffect`）自动跳过；
-* 视觉上玻璃质感弱于 Android 13+，属于降级而非崩溃路径。
+因此除了清单放开，`ui/theme/Theme.kt` 还加了一道运行时闸门：
+
+```kotlin
+val effectiveStrength =
+    if (Build.VERSION.SDK_INT < 33) GlassStrength.Subtle else strength
+```
+
+`GlassStrength.Subtle` 对应 `GlassAppearance(liquidGlassEnabled = false)`，
+`GlassAppearance.usesRefraction = liquidGlassEnabled && !reduceTransparency = false`，
+折射管线整体不启动。
+
+**只关折射还不够**（0.30 之后的复核结论，反编译 `glasmio-glass:0.1.1` 取证）：
+
+* `BottomNavigationContactKt` 里底部导航栏是按 `GlassAppearance.usesBackdrop` 决定要不要
+  `rememberNavigationInnerShadows(usesBackdrop, …)`；`usesBackdrop = !reduceTransparency`，
+  默认 `true`。而 `NavigationInnerShadowRenderer.<init>` 第一句就是
+  `new NavigationMaterialRenderer()`，后者 `<init>` 无条件 `new RuntimeShader(…)`。
+* `IosToolbarActionGroupKt` 更直接：`remember { NavigationMaterialRenderer() }`，没有任何开关
+  （本项目没用到这个 composable，但保留说明）。
+
+所以 31/32 上必须把 `reduceTransparency` 一起置 `true`，让 `usesBackdrop` 为 false。
+`Theme.kt` 现在按 `Build.VERSION.SDK_INT < 33` 走 `apiTooOld` 分支：
+
+```kotlin
+val apiTooOld = Build.VERSION.SDK_INT < 33
+val effectiveStrength = if (apiTooOld) GlassStrength.Subtle else strength
+GlassAppearance(liquidGlassEnabled = false, reduceTransparency = apiTooOld, …)
+```
+
+代价是 Glasmio 在不透明模式下把 `container` 的 alpha 强制成 1，半透明白会变成死白板，
+因此 `glassColors` 在 `apiTooOld` 时改用实色（深色 `#1C1C1E` / 浅色 `#F2F2F7`）。于是：
+
+* `RenderEffect` 模糊不启用（本来 31 可用，但采样链整体停掉更省心）；
+* AGSL 折射/色散与形变高光不启用；
+* 物料为实色卡片，观感接近 iOS 的 systemGray6，功能不受影响、不会再崩。
 
 因此 `app/src/main/AndroidManifest.xml` 用 `tools:overrideLibrary` 放开 6 个 glasmio 模块的清单：
 
@@ -100,8 +134,53 @@ isRuntimeShaderSupported = Build.VERSION.SDK_INT >= 33
 
 真正的下限仍以 `app/build.gradle.kts` 的 `minSdk = 31` 为准。
 
-**升级 Glasmio 时必须复查**：上面两个开关是否还在、阈值是否变了。如果新版本把开关删掉或改成
-无条件构造 `RuntimeShader`，Android 12 上会出现 `NoClassDefFoundError` 闪退，需要重新评估。
+**升级 Glasmio 时必须复查**：`PlatformKt` 的两个开关是否还在、阈值是否变了；以及
+`NavigationMaterialRenderer` / `PressHighlightRenderer` 的构造点是否仍然受 `usesBackdrop` /
+`usesRefraction` 控制。如果新版本改成无条件构造 `RuntimeShader`，Android 12 上会出现
+`NoClassDefFoundError` 闪退，需要重新评估。
+
+## 3.1 为什么 CI 打出来的 APK 只有 ~80MB（原版 ~180MB）
+
+仓库 `app/src/main/assets/` 只有三个小文件（`hackios-scripts.zip` 3.5MB、`loader.efi` 67KB、
+`unzbm-probe.zip` 91KB）；`.gitignore` 明确排除了 5 个大二进制：
+
+```
+app/src/main/assets/QEMU_EFI.fd
+app/src/main/assets/QEMU_VARS.fd
+app/src/main/assets/qemu-android-bundle.zip
+app/src/main/assets/hackios-toolchain.zip
+app/src/main/assets/mach.development.bcm2837
+```
+
+它们只存在于作者的本地工作区（上游仓库和 Release 都没有单独的资产文件）。但上游 `v0.30` 的
+debug APK 把这些打进去了，实测 `unzip -l HackiOS-0.30-debug.apk`：
+
+| asset | 解压后 |
+|---|---|
+| QEMU_EFI.fd | 64.0 MB |
+| QEMU_VARS.fd | 64.0 MB |
+| hackios-toolchain.zip | 25.4 MB |
+| qemu-android-bundle.zip | 21.7 MB |
+| mach.development.bcm2837 | 16.0 MB |
+
+合计约 191MB，正是 80MB 与 180MB 的差额。缺了它们不止是体积问题——`AssetDeployer.deploy()`
+会对每个 asset 做 `copyAsset` / `unzipBundle`，返回的 `DeployResult.missing` 非空、
+`DeployResult.ok == false`，App 会停在"资源缺失"错误态，QEMU 根本起不来。
+
+`.github/workflows/android-e2e.yml` 因此加了一步，在构建前从上游 APK 里把这几份抽回来：
+
+```yaml
+- name: Restore HackiOS binary assets from upstream APK
+  run: |
+    curl -fL --retry 3 -o upstream.apk \
+      https://github.com/hmascs/hackios-android/releases/download/v0.30/HackiOS-0.30-debug.apk
+    for f in qemu-android-bundle.zip hackios-toolchain.zip mach.development.bcm2837 QEMU_EFI.fd QEMU_VARS.fd; do
+      unzip -o -j upstream.apk "assets/$f" -d app/src/main/assets
+    done
+```
+
+本地构建想复现 180MB，把同一批文件手工放进 `app/src/main/assets/` 即可（它们仍被 `.gitignore`
+忽略，不会污染提交）。
 31/32 的玻璃观感尚未逐屏真机验收。
 
 ---

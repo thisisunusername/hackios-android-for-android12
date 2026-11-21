@@ -4,6 +4,9 @@ name: HackiOS iOS 27 重构 · 云端 E2E
 #   GOOGLE_APPLICATION_CREDENTIALS / GCP_SA_KEY  Firebase Test Lab 的服务账号
 # 没有密钥时，workflow 只跑「构建 + 单元测试」，不会伪造通过结果。
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ main ]
@@ -38,6 +41,20 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # 仓库里 .gitignore 排除了 5 个二进制资产（qemu 包 / 工具链 / 内核 / UEFI / VARS），
+      # 不补回来 APK 只有 ~80MB，装上去 AssetDeployer 会报资源缺失、QEMU 根本起不来。
+      # 上游 v0.30 的 debug APK（~180MB）里正好带着这几份，直接从里面抽出来即可。
+      - name: Restore HackiOS binary assets from upstream APK
+        run: |
+          set -e
+          mkdir -p app/src/main/assets
+          curl -fL --retry 3 -o upstream.apk \
+            https://github.com/hmascs/hackios-android/releases/download/v0.30/HackiOS-0.30-debug.apk
+          for f in qemu-android-bundle.zip hackios-toolchain.zip mach.development.bcm2837 QEMU_EFI.fd QEMU_VARS.fd; do
+            unzip -o -j upstream.apk "assets/$f" -d app/src/main/assets
+          done
+          ls -lh app/src/main/assets
+
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools'
@@ -68,6 +85,7 @@ jobs:
           name: apks
           path: |
             app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
             app/build/outputs/apk/androidTest/debug/*.apk
           retention-days: 14
 
@@ -76,6 +94,40 @@ jobs:
         with:
           name: unit-test-report
           path: app/build/reports/tests/testDebugUnitTest
+
+  # 每次 main 上的构建成功后自动发 Release：把 debug APK 挂到 v0.30.<run_number> 上。
+  # 用 debug APK 是因为 release 变体没有签名配置，产物是 unsigned、装不上；
+  # 等以后在仓库 Secrets 配了签名，再把这里换成 release APK 即可。
+  release:
+    needs: build-and-unit-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: apks
+          path: apks
+
+      - name: Collect installable APK
+        run: |
+          mkdir -p release
+          find apks -name 'app-debug.apk' -exec cp {} release/ \;
+          ls -lh release
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.30.${{ github.run_number }}
+          name: HackiOS Android 12 · 0.30.${{ github.run_number }}
+          body: |
+            自动构建的 debug APK（minSdk 31 / Android 12+，targetSdk 28）。
+
+            安装：下载 app-debug.apk 后侧载即可，首次运行需要授予「所有文件访问」。
+          files: release/*.apk
+          generate_release_notes: true
+          make_latest: true
 
   maestro-cloud:
     needs: [ preflight, build-and-unit-test ]

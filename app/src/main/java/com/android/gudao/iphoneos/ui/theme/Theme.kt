@@ -112,23 +112,38 @@ fun HackIosTheme(
     // cards, with the dark theme's white text on top of them. The whole app read as blank panels.
     // 弱 means "no blur, no refraction", which `liquidGlassEnabled = false` already says; the fill
     // stays translucent, so it still lets the wallpaper through and costs almost nothing.
-    val appearance = remember(strength) {
-        when (strength) {
+    // Android 12 / 12L（API 31/32）没有 AGSL：android.graphics.RuntimeShader 是 API 33 才有的类。
+    // Glasmio 的折射渲染器（GlassSurface / 导航材料 / 菜单形变 / 按压高光）在若干路径上会直接
+    // new RuntimeShader(...)，没有逐处判断 SDK_INT，于是 31/32 上一进桌面就
+    // NoClassDefFoundError / NoSuchMethodError 闪退。
+    //
+    // 这里强制退到「弱」：liquidGlassEnabled = false → GlassAppearance.usesRefraction = false，
+    // 折射管线整体不启动；只保留 RenderEffect 模糊 + 半透明填充，Android 12 上仍可用。
+    // 而且 `usesBackdrop` 与 `liquidGlassEnabled` 无关（usesBackdrop = !reduceTransparency）：
+    // 底部导航栏按 usesBackdrop 决定要不要建 NavigationInnerShadowRenderer，它的构造函数
+    // 无条件 new NavigationMaterialRenderer() → new RuntimeShader(...)；搜索栏那组
+    // IosToolbarActionGroup 更直接 `remember { NavigationMaterialRenderer() }`，没有任何开关。
+    // 也就是说只关折射没用，必须把 reduceTransparency 也置 true，让整条采样/折射链停掉。
+    // 代价是物料变成不透明填充，所以下面给 31/32 单独准备了实色（沿用 iOS 的 systemGray6 观感）。
+    val apiTooOld = android.os.Build.VERSION.SDK_INT < 33
+    val effectiveStrength = if (apiTooOld) GlassStrength.Subtle else strength
+    val appearance = remember(effectiveStrength, apiTooOld) {
+        when (effectiveStrength) {
             GlassStrength.Subtle -> GlassAppearance(
                 liquidGlassEnabled = false,
-                reduceTransparency = false,
+                reduceTransparency = apiTooOld,
                 adaptiveColorScheme = false,
             )
 
             GlassStrength.Standard -> GlassAppearance(
                 liquidGlassEnabled = true,
-                reduceTransparency = false,
+                reduceTransparency = apiTooOld,
                 adaptiveColorScheme = false,
             )
 
             GlassStrength.Strong -> GlassAppearance(
                 liquidGlassEnabled = true,
-                reduceTransparency = false,
+                reduceTransparency = apiTooOld,
                 adaptiveColorScheme = false,
             )
         }
@@ -136,14 +151,26 @@ fun HackIosTheme(
 
     // Pure white glass, tinted by nothing. Only the opacity changes between strengths, and a
     // hairline white stroke keeps the panel readable against the near-white light wallpaper.
-    val glassColors = remember(dark, strength) {
+    val glassColors = remember(dark, effectiveStrength, apiTooOld) {
         val white = Color.White
-        val container = when (strength) {
+        // Android 12 上 reduceTransparency 为 true，Glasmio 会把 container 的 alpha 强制成 1，
+        // 半透明白会变成一块死白板（深色主题的白字直接看不见）。所以这里给实色。
+        val opaque = if (dark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
+        if (apiTooOld) {
+            val base = defaultGlassColors(dark, accents.blue)
+            return@remember base.copy(
+                container = opaque,
+                prominentContainer = if (dark) Color(0xFF2C2C2E) else Color(0xFFFFFFFF),
+                subtleStroke = if (dark) white.copy(alpha = 0.18f) else Color(0x22000000),
+                groupedBackground = if (dark) Color(0xFF0E0E0F) else Color(0xFFEFEFF4),
+            )
+        }
+        val container = when (effectiveStrength) {
             GlassStrength.Subtle -> if (dark) 0.14f else 0.62f
             GlassStrength.Standard -> if (dark) 0.09f else 0.50f
             GlassStrength.Strong -> if (dark) 0.06f else 0.38f
         }
-        val prominent = when (strength) {
+        val prominent = when (effectiveStrength) {
             GlassStrength.Subtle -> if (dark) 0.22f else 0.78f
             GlassStrength.Standard -> if (dark) 0.15f else 0.66f
             GlassStrength.Strong -> if (dark) 0.11f else 0.54f
