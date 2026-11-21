@@ -48,6 +48,8 @@ jobs:
           sdkmanager --install "platforms;android-37.2" "build-tools;37.0.0" \
             || sdkmanager --install "platforms;android-37" "build-tools;36.0.0"
 
+      - name: Add Execute Permission to Gradlew
+        run: chmod 755 ./gardlew
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
