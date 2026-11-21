@@ -118,6 +118,8 @@ object QemuFailureClassifier {
         // 名字点到台面上。旧版把任意 exit==13 / 日志里任意 "Permission denied" 都算进来，于是
         // 访客系统内部的一次 EACCES 也会被写成「系统拒绝执行 QEMU」，把排查方向带偏。
         val execDenied = exitCode == 126 ||
+            // Java 侧 ProcessBuilder.start() 失败原文：Cannot run program "...": error=13, Permission denied
+            (log.contains("Cannot run program", true) && log.contains("error=13", true)) ||
             Regex("qemu-system-aarch64.*(Permission denied|cannot execute|exec format error)",
                 RegexOption.IGNORE_CASE).containsMatchIn(log) ||
             Regex("(Permission denied|cannot execute|exec format error).*qemu-system-aarch64",
