@@ -53,7 +53,7 @@ import io.github.neoruaa.glasmio.icons.SfSymbol
 import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonRole
 import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonSpec
 import io.github.neoruaa.glasmio.ui.GlasmioAlertDialog
-import io.github.neoruaa.glasmio.ui.GlasmioNavigationBar
+import com.android.gudao.iphoneos.ui.components.IosTabBar
 import io.github.neoruaa.glasmio.ui.GlasmioTabItem
 
 /**
@@ -374,7 +374,7 @@ private fun BottomNav(
             GlasmioTabItem(AppTab.Settings, "设置", SfSymbol.Gearshape),
         )
     }
-    GlasmioNavigationBar(
+    IosTabBar(
         items = items,
         selectedKey = tab,
         onSelected = onSelect,
