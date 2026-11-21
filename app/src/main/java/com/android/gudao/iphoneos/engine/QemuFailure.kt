@@ -114,7 +114,15 @@ object QemuFailureClassifier {
                 logTail = tail,
             )
         }
-        if (log.contains("Permission denied", true) || exitCode == 13 || exitCode == 126) {
+        // 只有「QEMU 自己根本没起来」才能判成执行被拒：那种情况下链接器或 execve 会把二进制
+        // 名字点到台面上。旧版把任意 exit==13 / 日志里任意 "Permission denied" 都算进来，于是
+        // 访客系统内部的一次 EACCES 也会被写成「系统拒绝执行 QEMU」，把排查方向带偏。
+        val execDenied = exitCode == 126 ||
+            Regex("qemu-system-aarch64.*(Permission denied|cannot execute|exec format error)",
+                RegexOption.IGNORE_CASE).containsMatchIn(log) ||
+            Regex("(Permission denied|cannot execute|exec format error).*qemu-system-aarch64",
+                RegexOption.IGNORE_CASE).containsMatchIn(log)
+        if (execDenied) {
             return QemuFailure(
                 QemuFailureKind.ExecDenied,
                 "系统拒绝执行 QEMU",
@@ -144,6 +152,18 @@ object QemuFailureClassifier {
         }
         // 137 = 128 + SIGKILL：几乎都是 Android 侧杀的（LMK、Android 12+ Phantom Process Killer、
         // 后台子进程超限），不是 QEMU 崩溃。把它单列出来，避免用户去翻 qemu.log 找不存在的错误。
+        // exit=13 但日志里没有对着 qemu 二进制的权限错误：这是 QEMU 起来后自己退的，
+        // 把最后一行真实输出放到卡片里，别再猜「安装包被改动」。
+        if (exitCode == 13) {
+            val last = log.lineSequence().map { it.trim() }.lastOrNull { it.isNotEmpty() }
+            return QemuFailure(
+                QemuFailureKind.EarlyExit,
+                "QEMU 启动后立即退出（exit=13）",
+                last ?: "进程没有留下任何输出。",
+                "先看日志页的 QEMU 日志；若为空，多半是 pflash / romfile / 串口路径打不开。",
+                logTail = tail,
+            )
+        }
         if (exitCode == 137) {
             return QemuFailure(
                 QemuFailureKind.ProcessKilled,

@@ -383,8 +383,33 @@ class QemuRunner(private val runDir: File) {
         // （0.29.2）也就永远不会触发。删除前先让调用方做完 EFI Shell 判定；删除后，
         // 「文件存在」就等价于「QEMU 真的走到串口初始化」。
         runCatching { serialLog().delete() }
+        // 执行位兜底：zip 不保存 mode，部署时 chmod 过，但升级/清数据后可能只重解了包没重跑
+        // chmod。这里每次启动前再确认一次，并把二进制父目录也补上 x 位——父目录缺 x 同样是 EACCES。
+        val exe = File(runDir, Constants.QEMU_BIN_REL)
+        if (exe.isFile && !exe.canExecute()) {
+            AppLog.w(TAG, "二进制没有执行位，补 chmod 0755：${exe.absolutePath}")
+            exe.parentFile?.let { p0 ->
+                generateSequence(p0) { it.parentFile }.take(4).forEach { it.setExecutable(true, false) }
+            }
+            exe.setReadable(true, false)
+            exe.setExecutable(true, false)
+        }
         val log = qemuLog()
-        process = pb.start()
+        process = try {
+            pb.start()
+        } catch (e: java.io.IOException) {
+            val detail = buildString {
+                append("execve 失败：").append(e.message).append('\n')
+                append("二进制：").append(exe.absolutePath).append('\n')
+                append("存在=").append(exe.isFile).append(" 可执行=").append(exe.canExecute())
+                append(" 大小=").append(exe.length()).append('\n')
+                append("SELinux 域=")
+                append(runCatching { File("/proc/self/attr/current").readText().trim() }.getOrDefault("?"))
+            }
+            AppLog.w(TAG, detail)
+            File(log.parentFile, "exec-failure.txt").writeText(detail)
+            throw java.io.IOException(detail, e)
+        }
         AppLog.i(TAG, "QEMU 进程已启动")
         // Drain stdout+stderr into qemu.log. Without this the child's error message stays in an
         // unread pipe and the process can even block once the 64 KB buffer fills.
