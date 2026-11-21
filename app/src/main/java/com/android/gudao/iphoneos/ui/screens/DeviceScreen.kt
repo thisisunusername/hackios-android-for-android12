@@ -44,10 +44,10 @@ import com.android.gudao.iphoneos.ui.theme.LocalIosAccents
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.glass.GlassEmphasis
 import com.android.gudao.iphoneos.ui.components.IosPinnedPage
-import io.github.neoruaa.glasmio.ui.GlasmioButton
-import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
-import io.github.neoruaa.glasmio.ui.GlasmioListRow
-import io.github.neoruaa.glasmio.ui.GlasmioSectionTitle
+import com.android.gudao.iphoneos.ui.plain.GlasmioButton
+import com.android.gudao.iphoneos.ui.plain.GlasmioGroupedList
+import com.android.gudao.iphoneos.ui.plain.GlasmioListRow
+import com.android.gudao.iphoneos.ui.plain.GlasmioSectionTitle
 
 data class DeviceActions(
     val start: () -> Unit,

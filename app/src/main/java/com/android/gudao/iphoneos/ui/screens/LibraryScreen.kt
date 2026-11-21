@@ -45,9 +45,9 @@ import com.android.gudao.iphoneos.ui.components.StatusChip
 import com.android.gudao.iphoneos.ui.theme.LocalIosAccents
 import io.github.neoruaa.glasmio.core.IosTypography
 import com.android.gudao.iphoneos.ui.components.IosPinnedPage
-import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
-import io.github.neoruaa.glasmio.ui.GlasmioListRow
-import io.github.neoruaa.glasmio.ui.GlasmioSectionTitle
+import com.android.gudao.iphoneos.ui.plain.GlasmioGroupedList
+import com.android.gudao.iphoneos.ui.plain.GlasmioListRow
+import com.android.gudao.iphoneos.ui.plain.GlasmioSectionTitle
 
 data class LibraryActions(
     val download: () -> Unit,

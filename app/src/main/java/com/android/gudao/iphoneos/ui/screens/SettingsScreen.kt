@@ -42,18 +42,17 @@ import com.android.gudao.iphoneos.ui.components.IosGlyph
 import com.android.gudao.iphoneos.ui.components.SectionLabel
 import com.android.gudao.iphoneos.ui.theme.LocalIosAccents
 import io.github.neoruaa.glasmio.core.IosTypography
-import io.github.neoruaa.glasmio.glass.LocalGlassBackdrop
 import com.android.gudao.iphoneos.ui.components.IosPinnedPage
-import io.github.neoruaa.glasmio.ui.GlasmioActionSheetContent
-import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonRole
-import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonSpec
-import io.github.neoruaa.glasmio.ui.GlasmioAlertDialog
-import io.github.neoruaa.glasmio.ui.GlasmioBottomSheet
-import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
-import io.github.neoruaa.glasmio.ui.GlasmioListRow
-import io.github.neoruaa.glasmio.ui.GlasmioSegmentedControl
-import io.github.neoruaa.glasmio.ui.GlasmioSlider
-import io.github.neoruaa.glasmio.ui.GlasmioSwitch
+import com.android.gudao.iphoneos.ui.plain.GlasmioActionSheetContent
+import com.android.gudao.iphoneos.ui.plain.GlasmioAlertButtonRole
+import com.android.gudao.iphoneos.ui.plain.GlasmioAlertButtonSpec
+import com.android.gudao.iphoneos.ui.plain.GlasmioAlertDialog
+import com.android.gudao.iphoneos.ui.plain.GlasmioBottomSheet
+import com.android.gudao.iphoneos.ui.plain.GlasmioGroupedList
+import com.android.gudao.iphoneos.ui.plain.GlasmioListRow
+import com.android.gudao.iphoneos.ui.plain.GlasmioSegmentedControl
+import com.android.gudao.iphoneos.ui.plain.GlasmioSlider
+import com.android.gudao.iphoneos.ui.plain.GlasmioSwitch
 
 data class SettingsActions(
     val setTheme: (ThemeMode) -> Unit,
@@ -201,7 +200,6 @@ fun SettingsScreen(
                         checked = state.settings.mttcg,
                         onCheckedChange = { if (!running) actions.setMttcg(it) },
                         enabled = !running,
-                        backdrop = LocalGlassBackdrop.current,
                         onTintColor = accents.blue,
                     )
                 }
@@ -223,7 +221,6 @@ fun SettingsScreen(
                     GlasmioSwitch(
                         checked = state.settings.autoFallback,
                         onCheckedChange = { actions.setAutoFallback(it) },
-                        backdrop = LocalGlassBackdrop.current,
                         onTintColor = accents.blue,
                     )
                 }
@@ -289,7 +286,6 @@ fun SettingsScreen(
                             checked = state.settings.netEnabled,
                             onCheckedChange = actions.setNet,
                             enabled = !running,
-                            backdrop = LocalGlassBackdrop.current,
                             onTintColor = accents.green,
                         )
                     },
@@ -355,7 +351,6 @@ fun SettingsScreen(
                         GlasmioSwitch(
                             checked = mcp.enabled,
                             onCheckedChange = actions.setMcpEnabled,
-                            backdrop = LocalGlassBackdrop.current,
                             onTintColor = accents.green,
                         )
                     },
@@ -414,7 +409,6 @@ fun SettingsScreen(
                         GlasmioSwitch(
                             checked = mcp.bindLan,
                             onCheckedChange = actions.setMcpBindLan,
-                            backdrop = LocalGlassBackdrop.current,
                             onTintColor = accents.orange,
                         )
                     },
@@ -455,7 +449,6 @@ fun SettingsScreen(
                             onCheckedChange = { on ->
                                 if (on) confirmWrite = true else actions.setMcpAllowWrite(false)
                             },
-                            backdrop = LocalGlassBackdrop.current,
                             onTintColor = accents.orange,
                         )
                     },
@@ -475,7 +468,6 @@ fun SettingsScreen(
                                 onCheckedChange = { on ->
                                     if (on) confirmFull = true else actions.setMcpFullAccess(false)
                                 },
-                                backdrop = LocalGlassBackdrop.current,
                                 onTintColor = accents.red,
                             )
                         },
@@ -586,7 +578,6 @@ fun SettingsScreen(
                         GlasmioSwitch(
                             checked = state.settings.followLog,
                             onCheckedChange = actions.setFollow,
-                            backdrop = LocalGlassBackdrop.current,
                             onTintColor = accents.blue,
                         )
                     },

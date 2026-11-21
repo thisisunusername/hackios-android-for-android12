@@ -48,11 +48,10 @@ import com.android.gudao.iphoneos.ui.theme.HackIosTheme
 import com.android.gudao.iphoneos.ui.theme.IosWallpaper
 import com.android.gudao.iphoneos.ui.theme.resolveDark
 import io.github.neoruaa.glasmio.core.IosTypography
-import io.github.neoruaa.glasmio.glass.GlasmioBackdropHost
 import io.github.neoruaa.glasmio.icons.SfSymbol
-import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonRole
-import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonSpec
-import io.github.neoruaa.glasmio.ui.GlasmioAlertDialog
+import com.android.gudao.iphoneos.ui.plain.GlasmioAlertButtonRole
+import com.android.gudao.iphoneos.ui.plain.GlasmioAlertButtonSpec
+import com.android.gudao.iphoneos.ui.plain.GlasmioAlertDialog
 import com.android.gudao.iphoneos.ui.components.IosTabBar
 import io.github.neoruaa.glasmio.ui.GlasmioTabItem
 
@@ -97,11 +96,9 @@ fun HackIosApp(
             }
         }
 
-        GlasmioBackdropHost(
-            modifier = modifier.fillMaxSize(),
-            sampledContent = { IosWallpaper(dark = dark, strength = state.settings.glassStrength) },
-            overlayContent = {
-                Box(Modifier.fillMaxSize()) {
+        Box(modifier.fillMaxSize()) {
+            IosWallpaper(dark = dark, strength = state.settings.glassStrength)
+            Box(Modifier.fillMaxSize()) {
                     AnimatedContent(
                         targetState = detail,
                         transitionSpec = {
@@ -252,9 +249,8 @@ fun HackIosApp(
                             ),
                         )
                     }
-                }
-            },
-        )
+            }
+        }
     }
 
     LaunchedEffect(state.permissionPending) {

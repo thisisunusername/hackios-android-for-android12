@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.android.gudao.iphoneos.ui.theme.LocalIsDark
-import io.github.neoruaa.glasmio.scaffold.GlasmioPinnedListPage
 
 /**
  * Android 12 / 12L 的页面壳。
@@ -52,18 +51,6 @@ fun IosPinnedPage(
     actions: @Composable RowScope.() -> Unit = {},
     content: LazyListScope.() -> Unit,
 ) {
-    if (android.os.Build.VERSION.SDK_INT >= 33) {
-        GlasmioPinnedListPage(
-            title = title,
-            bottomPadding = bottomPadding,
-            subtitle = subtitle,
-            modifier = modifier,
-            actions = actions,
-            content = content,
-        )
-        return
-    }
-
     val dark = LocalIsDark.current
     val fg = if (dark) Color(0xFFF2F2F7) else Color(0xFF1C1C1E)
     Column(

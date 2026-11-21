@@ -56,8 +56,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import com.android.gudao.iphoneos.state.ToastMessage
 import com.android.gudao.iphoneos.ui.theme.LocalIosAccents
 import io.github.neoruaa.glasmio.core.IosTypography
-import io.github.neoruaa.glasmio.ui.GlasmioCard
-import io.github.neoruaa.glasmio.ui.glasmioGroupedListBackground
+import com.android.gudao.iphoneos.ui.plain.GlasmioCard
+import com.android.gudao.iphoneos.ui.plain.glasmioGroupedListBackground
 
 /**
  * A grouped-list material panel, the iOS "inset grouped" container.

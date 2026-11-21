@@ -61,9 +61,9 @@ import com.android.gudao.iphoneos.ui.components.IosGlyph
 import com.android.gudao.iphoneos.ui.components.StatusChip
 import com.android.gudao.iphoneos.ui.theme.LocalIosAccents
 import io.github.neoruaa.glasmio.core.IosTypography
-import io.github.neoruaa.glasmio.ui.GlasmioActionSheetContent
-import io.github.neoruaa.glasmio.ui.GlasmioBottomSheet
-import io.github.neoruaa.glasmio.ui.GlasmioListRow
+import com.android.gudao.iphoneos.ui.plain.GlasmioActionSheetContent
+import com.android.gudao.iphoneos.ui.plain.GlasmioBottomSheet
+import com.android.gudao.iphoneos.ui.plain.GlasmioListRow
 
 /**
  * The iOS screen itself.

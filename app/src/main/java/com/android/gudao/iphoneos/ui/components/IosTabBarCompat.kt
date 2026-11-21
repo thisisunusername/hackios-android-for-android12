@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.android.gudao.iphoneos.ui.theme.LocalIosAccents
 import com.android.gudao.iphoneos.ui.theme.LocalIsDark
-import io.github.neoruaa.glasmio.ui.GlasmioNavigationBar
 import io.github.neoruaa.glasmio.ui.GlasmioTabItem
 
 /**
@@ -51,19 +50,6 @@ fun <T> IosTabBar(
     compactSize: Dp,
     modifier: Modifier = Modifier,
 ) {
-    if (android.os.Build.VERSION.SDK_INT >= 33) {
-        GlasmioNavigationBar(
-            items = items,
-            selectedKey = selectedKey,
-            onSelected = onSelected,
-            onExpand = onExpand,
-            compactProgress = compactProgress,
-            compactSize = compactSize,
-            modifier = modifier,
-        )
-        return
-    }
-
     val dark = LocalIsDark.current
     val accents = LocalIosAccents.current
     val barBg = if (dark) Color(0xF21C1C1E) else Color(0xF2F9F9FB)

@@ -45,14 +45,14 @@ import com.android.gudao.iphoneos.ui.components.Glyph
 import com.android.gudao.iphoneos.ui.components.IosGlyph
 import com.android.gudao.iphoneos.ui.theme.LocalIosAccents
 import io.github.neoruaa.glasmio.core.IosTypography
-import io.github.neoruaa.glasmio.scaffold.GlasmioPinnedPage
-import io.github.neoruaa.glasmio.ui.GlasmioActionSheetContent
-import io.github.neoruaa.glasmio.ui.GlasmioAlertDialog
-import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonRole
-import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonSpec
-import io.github.neoruaa.glasmio.ui.GlasmioBottomSheet
-import io.github.neoruaa.glasmio.ui.GlasmioIconButton
-import io.github.neoruaa.glasmio.ui.GlasmioListRow
+import com.android.gudao.iphoneos.ui.plain.GlasmioPinnedPage
+import com.android.gudao.iphoneos.ui.plain.GlasmioActionSheetContent
+import com.android.gudao.iphoneos.ui.plain.GlasmioAlertDialog
+import com.android.gudao.iphoneos.ui.plain.GlasmioAlertButtonRole
+import com.android.gudao.iphoneos.ui.plain.GlasmioAlertButtonSpec
+import com.android.gudao.iphoneos.ui.plain.GlasmioBottomSheet
+import com.android.gudao.iphoneos.ui.plain.GlasmioIconButton
+import com.android.gudao.iphoneos.ui.plain.GlasmioListRow
 
 /**
  * 折叠连续重复行：guest 里的 lsd 等守护进程忙等时会把同一行刷成几十上百行，

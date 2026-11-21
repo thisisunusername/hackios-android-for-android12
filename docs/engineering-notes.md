@@ -1265,3 +1265,26 @@ macOS/NDK CI。此后不再反复重编——出问题按 `framebuffer-probe` �
 * 版本：versionCode=36 / versionName=0.27.0。编译通过、JUnit 263/263 全过（0 失败）。
 * 诚实边界：UI 行为未经真机手测，四项均已按现有组件（GlassActionButton/GlasmioAlertDialog）实现，
   上真机后如有交互细节需微调，属样式层而非逻辑层。
+
+
+## 3.2 0.31：液态玻璃整体下线，改纯色 Material3 主题
+
+第三轮之后仍继续崩：顶栏修好，标签栏崩（`GlassMorphRenderer.<init>`）；标签栏修好，绘制期崩
+（`NavigationDropShadowRenderer.prepare` 在 draw 时才 `new RuntimeShader`）。结论是 Glasmio
+0.1.x 的 AGSL 构造点分散在 navigation material / morphing nav glass / drop shadow 三条链上，
+其中顶栏、标签栏、导航投影各自 new 自己的渲染器，`GlassAppearance` 根本传不下去——逐点打补丁
+只会一直漏，而且每次都要等用户装机复现。
+
+因此 0.31 起不再使用 Glasmio 的任何玻璃组件：
+
+* `ui/theme/Theme.kt`：`GlasmioTheme` → `MaterialTheme(darkColorScheme/lightColorScheme)`，
+  背景 `#F2F2F7` / `#000000`，卡片 `#FFFFFF` / `#1C1C1E`，强调色沿用 iOS 语义色。
+* `ui/plain/PlainWidgets.kt`：用 Material3 复刻 Glasmio 的同名 API（Card / Button / IconButton /
+  ListRow / GroupedList / SectionTitle / Switch / Slider / SegmentedControl / AlertDialog /
+  BottomSheet / ActionSheetContent / PinnedPage），一个着色器都不碰。
+* `ui/components/IosPinnedPageCompat.kt`、`IosTabBarCompat.kt`：合并成纯色页面壳与标签栏，
+  不再有 SDK 分支。
+* `HackIosApp.kt`：删掉 `GlasmioBackdropHost`，壁纸直接铺在 Box 底层。
+
+`GlasmioTabItem` / `SfSymbol` / `IosTypography` 仍保留——它们是 data class、图标枚举与
+TextStyle，不触碰 AGSL。`:app:compileDebugKotlin` 与 `:app:compileDebugUnitTestKotlin` 均通过。

@@ -28,8 +28,8 @@ import com.android.gudao.iphoneos.ui.components.IosGlyph
 import com.android.gudao.iphoneos.ui.components.SectionLabel
 import com.android.gudao.iphoneos.ui.theme.LocalIosAccents
 import io.github.neoruaa.glasmio.core.IosTypography
-import io.github.neoruaa.glasmio.scaffold.GlasmioPinnedPage
-import io.github.neoruaa.glasmio.ui.GlasmioButton
+import com.android.gudao.iphoneos.ui.plain.GlasmioPinnedPage
+import com.android.gudao.iphoneos.ui.plain.GlasmioButton
 
 @Composable
 fun DiagnosticsScreen(
