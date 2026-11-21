@@ -43,7 +43,7 @@ import com.android.gudao.iphoneos.ui.components.SectionLabel
 import com.android.gudao.iphoneos.ui.theme.LocalIosAccents
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.glass.LocalGlassBackdrop
-import io.github.neoruaa.glasmio.scaffold.GlasmioPinnedListPage
+import com.android.gudao.iphoneos.ui.components.IosPinnedPage
 import io.github.neoruaa.glasmio.ui.GlasmioActionSheetContent
 import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonRole
 import io.github.neoruaa.glasmio.ui.GlasmioAlertButtonSpec
@@ -109,7 +109,7 @@ fun SettingsScreen(
     var confirmFull by remember { mutableStateOf(false) }
     var confirmToken by remember { mutableStateOf(false) }
 
-    GlasmioPinnedListPage(
+    IosPinnedPage(
         title = "设置",
         bottomPadding = 144.dp,
         subtitle = "性能、外观与存储",

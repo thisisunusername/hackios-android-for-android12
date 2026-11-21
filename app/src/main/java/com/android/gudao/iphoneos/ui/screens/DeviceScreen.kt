@@ -43,7 +43,7 @@ import com.android.gudao.iphoneos.ui.components.StatusChip
 import com.android.gudao.iphoneos.ui.theme.LocalIosAccents
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.glass.GlassEmphasis
-import io.github.neoruaa.glasmio.scaffold.GlasmioPinnedListPage
+import com.android.gudao.iphoneos.ui.components.IosPinnedPage
 import io.github.neoruaa.glasmio.ui.GlasmioButton
 import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
 import io.github.neoruaa.glasmio.ui.GlasmioListRow
@@ -74,7 +74,7 @@ fun DeviceScreen(
     val running = qemu is QemuUi.Running
     val phase = (qemu as? QemuUi.Running)?.phase
 
-    GlasmioPinnedListPage(
+    IosPinnedPage(
         title = "设备",
         bottomPadding = 144.dp,
         subtitle = "iPhone X · iOS 16.5 (20F66)",

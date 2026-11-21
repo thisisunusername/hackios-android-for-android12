@@ -44,7 +44,7 @@ import com.android.gudao.iphoneos.ui.components.SectionLabel
 import com.android.gudao.iphoneos.ui.components.StatusChip
 import com.android.gudao.iphoneos.ui.theme.LocalIosAccents
 import io.github.neoruaa.glasmio.core.IosTypography
-import io.github.neoruaa.glasmio.scaffold.GlasmioPinnedListPage
+import com.android.gudao.iphoneos.ui.components.IosPinnedPage
 import io.github.neoruaa.glasmio.ui.GlasmioGroupedList
 import io.github.neoruaa.glasmio.ui.GlasmioListRow
 import io.github.neoruaa.glasmio.ui.GlasmioSectionTitle
@@ -72,7 +72,7 @@ fun LibraryScreen(
     val b = state.build
     val art = state.artifacts
 
-    GlasmioPinnedListPage(
+    IosPinnedPage(
         title = "资源",
         bottomPadding = 144.dp,
         subtitle = "固件与系统镜像",
