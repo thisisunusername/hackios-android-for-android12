@@ -516,27 +516,116 @@ class ImageBuilder(private val context: Context) {
                sig[2] == 0x03.toByte() && sig[3] == 0x04.toByte()
     }
 
-    /** Read the three disk images out of the IPSW zip and put them where fetch.sh looks. */
+    /** Read the three disk images out of the IPSW zip and put them where fetch.sh looks.
+     *
+     * 用工具链自带的 7zz，不用 java.util.zip.ZipFile。
+     *
+     * 原因（用户真机复现 + 上游 issue 里也有同样的报告）：Apple 的 IPSW 里那三个 dmg 是
+     * 4.7 GB / 2.7 GB / 10 MB 的超大成员，`ZipFile.getInputStream` 会去校验 local file header
+     * 的签名，而这类包在部分下载路径下 central directory 的偏移与 LOC 对不上，于是抛
+     * `ZipException: invalid LOC header (bad signature)`——同一个文件在 Termux 里 `unzip`
+     * 却是好的。7zz 是按 central directory 自己找数据、对 LOC 容错，跟我们 fetch.sh 用的
+     * 是同一个解包器，行为一致，也顺带省掉 4.7 GB 的 Java 流式读取。
+     *
+     * 只有在工具链缺失或 7zz 不可执行时才回退到原来的 ZipFile 路径。
+     */
     private fun extractMembers(ipsw: File, progress: Progress) {
         progress.onPhase("解包 IPSW 镜像成员（${Constants.IPSW_EXTRACT_BYTES / (1 shl 30)} GB）")
         ios165Dir.mkdirs()
+        val sevenZip = File(toolchainDir, "bin/7zz")
         var done = 0L
+        for ((member, localName, size) in Constants.IPSW_MEMBERS) {
+            val out = File(ios165Dir, localName)
+            if (out.length() == size) {
+                done += size
+                progress.onProgress(done, Constants.IPSW_EXTRACT_BYTES, "$localName 已存在")
+                continue
+            }
+            if (out.exists()) out.delete()
+            val part = File(out.parentFile, "$localName.part")
+            if (part.exists()) part.delete()
+            val base = done
+            if (sevenZip.canExecute()) {
+                extractWith7zz(sevenZip, ipsw, member, part, size) { written ->
+                    progress.onProgress(base + written, Constants.IPSW_EXTRACT_BYTES,
+                        "$localName ${written / (1 shl 20)} / ${size / (1 shl 20)} MB")
+                }
+            } else {
+                extractWithZip(ipsw, member, part, size) { written ->
+                    progress.onProgress(base + written, Constants.IPSW_EXTRACT_BYTES,
+                        "$localName ${written / (1 shl 20)} / ${size / (1 shl 20)} MB")
+                }
+            }
+            if (part.length() != size) throw BuildError(
+                "$member 解包不完整：${part.length()} ≠ $size\n" +
+                    "IPSW 可能确实损坏：在 Termux 里跑 `unzip -t <ipsw>` 校验，失败就删掉重下。")
+            if (!part.renameTo(out)) throw BuildError("$localName 写入失败（无法改名）")
+            done += size
+            progress.onLog("extract: $member -> $localName ($size bytes)")
+        }
+    }
+
+    /** 7zz e：按成员名解到临时目录，再改名成 fetch.sh 期望的名字。 */
+    private fun extractWith7zz(
+        sevenZip: File,
+        ipsw: File,
+        member: String,
+        dest: File,
+        size: Long,
+        onWritten: (Long) -> Unit,
+    ) {
+        val tmp = File(ios165Dir, ".7zz-part").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        try {
+            val process = ProcessBuilder(
+                sevenZip.absolutePath, "e", "-bsp1", "-y",
+                "-o${tmp.absolutePath}", ipsw.absolutePath, member,
+            ).redirectErrorStream(true).start()
+            var reported = 0L
+            process.inputStream.bufferedReader().useLines { lines ->
+                for (line in lines) {
+                    val pct = Regex("(\\d{1,3})%").find(line)?.groupValues?.get(1)?.toLongOrNull()
+                    if (pct != null) {
+                        val written = size * pct / 100
+                        if (written > reported) {
+                            reported = written
+                            onWritten(written)
+                        }
+                    }
+                }
+            }
+            val rc = process.waitFor()
+            val produced = tmp.listFiles()?.firstOrNull { it.name == File(member).name }
+            if (rc != 0 || produced == null) {
+                throw BuildError(
+                    "7zz 解包 $member 失败（rc=$rc）\n" +
+                        "如果这一步只报 LOC/zlib 之类，IPSW 本身多半是坏的：在 Termux 里 `unzip -t` 校验后重下。")
+            }
+            if (produced.length() != size) throw BuildError(
+                "$member 大小不符：${produced.length()} ≠ $size")
+            if (!produced.renameTo(dest)) throw BuildError("$member 临时文件改名失败")
+        } finally {
+            tmp.deleteRecursively()
+        }
+    }
+
+    /** 回退路径：java.util.zip。只在小包或 7zz 缺失时用。 */
+    private fun extractWithZip(
+        ipsw: File,
+        member: String,
+        dest: File,
+        size: Long,
+        onWritten: (Long) -> Unit,
+    ) {
         try {
             ZipFile(ipsw).use { zip ->
-            for ((member, localName, size) in Constants.IPSW_MEMBERS) {
                 val entry = zip.getEntry(member) ?: throw BuildError(
                     "IPSW 中找不到成员 $member\n这个文件不是 iPhone X (iPhone10,3/iPhone10,6) 的 iOS 16.5 固件")
-                val out = File(ios165Dir, localName)
-                if (out.length() == size) {
-                    done += size
-                    progress.onProgress(done, Constants.IPSW_EXTRACT_BYTES, "$localName 已存在")
-                    continue
-                }
-                if (out.exists()) out.delete()
-                val part = File(out.parentFile, "$localName.part")
                 zip.getInputStream(entry).use { input ->
-                    FileOutputStream(part).use { fos ->
-                        val buf = ByteArray(8 shl 20)
+                    FileOutputStream(dest).use { fos ->
+                        val buf = ByteArray(4 shl 20)
                         var written = 0L
                         var lastReport = 0L
                         while (written < size) {
@@ -545,26 +634,19 @@ class ImageBuilder(private val context: Context) {
                             if (n < 0) break
                             fos.write(buf, 0, n)
                             written += n
-                            done += n
-                            // 32 MB between UI updates: a 4.7 GB member would otherwise post
-                            // ~150 runOnUiThread runnables a second.
                             if (written - lastReport >= (32L shl 20) || written == size) {
                                 lastReport = written
-                                progress.onProgress(done, Constants.IPSW_EXTRACT_BYTES,
-                                    "$localName ${written / (1 shl 20)} / ${size / (1 shl 20)} MB")
+                                onWritten(written)
                             }
                         }
-                        if (written != size) throw BuildError("$member 解包不完整：$written ≠ $size")
                     }
                 }
-                if (!part.renameTo(out)) throw BuildError("$localName 写入失败（无法改名）")
-                progress.onLog("extract: $member -> $localName ($size bytes)")
             }
-        }
         } catch (e: java.util.zip.ZipException) {
             throw BuildError(
-                "固件文件损坏，无法解包 ZIP：${e.message}\n" +
-                "请删除 IPSW 重新下载，或用电脑下载后 adb push 到 Download/hackios/ipsw/")
+                "无法解包 ZIP：${e.message}\n" +
+                    "如果是 invalid LOC header，说明 Java 的 ZipFile 与这个包的中央目录对不上；" +
+                    "本版已优先用工具链里的 7zz，出现这行意味着 7zz 不可执行。请先跑「工具链自检」。")
         }
     }
 
