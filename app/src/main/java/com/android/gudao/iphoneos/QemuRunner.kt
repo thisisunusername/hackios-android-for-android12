@@ -60,6 +60,16 @@ class QemuRunner(private val runDir: File) {
     var lastStartSummary: String = ""
         private set
 
+    /**
+     * 0.30.x：启动前对 QEMU 二进制做一次 `-version` 探针。`execve` 被拒时那条例外只写得像
+     * 「Cannot run program ...: error=13」——分辨不出是 exec 被 SELinux 拒、还是 QEMU 自己打不开
+     * 某个文件。探针在真 execve 之前跑，把 errno / SELinux 域 / exit code 一起落到 exec-probe.txt，
+     * 失败卡片与日志页都能直接看到。
+     */
+    @Volatile
+    var lastExecProbe: String = ""
+        private set
+
     data class Prepared(
         val payload: File,
         val ramImg: File,
@@ -395,6 +405,9 @@ class QemuRunner(private val runDir: File) {
             exe.setExecutable(true, false)
         }
         val log = qemuLog()
+        val probe = probeExec(exe)
+        lastExecProbe = probe
+        lastStartSummary = lastStartSummary + "\n" + probe
         process = try {
             pb.start()
         } catch (e: java.io.IOException) {
@@ -433,6 +446,50 @@ class QemuRunner(private val runDir: File) {
             isDaemon = true
             start()
         }
+    }
+
+    /**
+     * 真 execve 一次 `qemu -version`：跑通即证明「二进制能被内核执行」（动态链接器 + 权限位
+     * + SELinux 域都过关）；跑不通则把 errno、路径、权限位、SELinux 域原样记下来。
+     *
+     * 为什么值得 2 秒：`ProcessBuilder.start()` 抛的 IOException 只有
+     * `Cannot run program "…": error=13, Permission denied` 这一句，它既可能是 exec 被拒，
+     * 也可能是这台 ROM 上某个 PATH 目录对 untrusted_app 回 EACCES（execvp 会把这个 EACCES
+     * 记下来、而不是报 ENOENT）。先做探针，失败卡片就能直接分诊，不用再猜。
+     */
+    private fun probeExec(exe: File): String {
+        val sb = StringBuilder()
+        fun dom() = runCatching { File("/proc/self/attr/current").readText().trim() }
+            .getOrDefault("?")
+        sb.append("exec 探针：").append(exe.name).append(" -version | 存在=").append(exe.isFile)
+            .append(" 可执行=").append(exe.canExecute()).append(" 大小=").append(exe.length())
+            .append(" SELinux 域=").append(dom())
+        val started = System.currentTimeMillis()
+        try {
+            val p = ProcessBuilder(listOf(exe.absolutePath, "-version"))
+                .directory(runDir).redirectErrorStream(true).start()
+            val out = StringBuilder()
+            val r = p.inputStream.bufferedReader()
+            val deadline = started + 4000
+            var line = r.readLine()
+            while (line != null && System.currentTimeMillis() < deadline) {
+                if (out.isEmpty()) out.append(line) else out.append('\n').append(line)
+                if (out.length > 800) break
+                line = r.readLine()
+            }
+            val finished = p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)
+            if (!finished) runCatching { p.destroy() }
+            sb.append(" → exit=").append(runCatching { p.exitValue() }.getOrDefault(-1))
+                .append(" 用时=").append(System.currentTimeMillis() - started).append("ms")
+            sb.append(" 输出=").append(out.toString().ifEmpty { "(空)" })
+        } catch (e: java.io.IOException) {
+            sb.append(" → execve 失败：").append(e.message)
+        } catch (t: Throwable) {
+            sb.append(" → 探针异常：").append(t.message)
+        }
+        AppLog.i(TAG, sb.toString())
+        runCatching { File(runDir, "exec-probe.txt").writeText(sb.toString()) }
+        return sb.toString()
     }
 
     fun isRunning(): Boolean = process?.isAlive == true

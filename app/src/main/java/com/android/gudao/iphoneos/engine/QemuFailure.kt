@@ -125,11 +125,21 @@ object QemuFailureClassifier {
             Regex("(Permission denied|cannot execute|exec format error).*qemu-system-aarch64",
                 RegexOption.IGNORE_CASE).containsMatchIn(log)
         if (execDenied) {
+            // 把真的证据搬到卡片上：泛泛的「execve 被拒」既解释不了 errno，也解释不了进退方向。
+            // 证据优先级：Java 侧 ProcessBuilder 原文 > 探针的 execve 失败行 > 点名 qemu 的权限错误行。
+            val evidence = log.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() && it.contains("Cannot run program", true) }
+                ?: log.lineSequence().map { it.trim() }.firstOrNull { it.contains("execve 失败", true) }
+                ?: log.lineSequence().map { it.trim() }.firstOrNull {
+                    Regex("qemu-system-aarch64.*(Permission denied|cannot execute|exec format error)",
+                        RegexOption.IGNORE_CASE).containsMatchIn(it)
+                }
             return QemuFailure(
                 QemuFailureKind.ExecDenied,
                 "系统拒绝执行 QEMU",
-                "execve 返回 EACCES/EPERM，Android 10+ 会按 targetSdk 选择 SELinux 域。",
-                "本 App 固定 targetSdk=28 以留在 untrusted_app_27 域；若仍失败，多为安装包被改动。",
+                evidence?.take(220)
+                    ?: "execve 返回 EACCES/EPERM，Android 10+ 会按 targetSdk 选择 SELinux 域。",
+                "先看日志页里 exec-probe.txt：探针 exit=0 说明二进制能被执行，问题在 QEMU 打开的文件；" +
+                    "探针也报 EACCES 才是真正的执行被拒（那时看同一份里的「SELinux 域」）。",
                 retryable = false,
                 logTail = tail,
             )
