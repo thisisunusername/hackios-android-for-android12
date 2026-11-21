@@ -11,7 +11,7 @@ android {
     defaultConfig {
         applicationId = "com.android.gudao.iphoneos"
         // Glasmio (iOS 27 Liquid Glass) requires API 33; the app is an Android 13+ deliverable.
-        minSdk = 33
+        minSdk = 31
 
         // targetSdk 28 is deliberate and must not be raised. See docs/engineering-notes.md:
         // Android 10+ derives the SELinux domain from targetSdkVersion, and untrusted_app_29+
