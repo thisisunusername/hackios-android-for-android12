@@ -4,9 +4,7 @@
 
 HackiOS 将 QEMU、自编 XNU 内核和 Android 原生前端整合在一起，提供固件准备、镜像构建、系统启动、画面显示与触摸控制。界面采用 Jetpack Compose 与 Glasmio，支持深浅色主题。
 
-[下载 0.4](https://github.com/hmascs/hackios-android/releases/tag/v0.4) · [App 源码](https://github.com/hmascs/hackios-android/tree/v0.4) · [XNU 内核源码](https://github.com/hmascs/hackios-android/releases/download/v0.4/HackiOS-XNU-0.4-source.tar.gz) · [反馈问题](https://github.com/hmascs/hackios-android/issues)
-
-> **0.4 · Android 13+ · ARM64**
+> **0.4 · Android 12+ · ARM64**
 >
 > 包名：`com.android.gudao.iphoneos` · versionCode：`68`
 
@@ -21,7 +19,7 @@ HackiOS 将 QEMU、自编 XNU 内核和 Android 原生前端整合在一起，�
 
 ## 开始使用
 
-1. 从 [0.4 Release](https://github.com/hmascs/hackios-android/releases/tag/v0.4) 下载并安装 `HackiOS-0.4.apk`。
+1. 从 [Release] 下载并安装 `HackiOS-0.4.apk`。
 2. 首次打开时授予所需存储权限，按 App 引导准备固件与系统镜像。专有系统材料需由使用者自行合法取得。
 3. 在首页选择图形后端。如需连接数据盘，在“存储”中选择模式与容量。
 4. 构建完成后启动系统。首次构建和 TCG 启动可能需要较长时间，可在日志页查看实际进度。
@@ -32,7 +30,7 @@ HackiOS 将 QEMU、自编 XNU 内核和 Android 原生前端整合在一起，�
 
 | 项目 | 要求与当前范围 |
 | --- | --- |
-| Android | Android 13 及以上 |
+| Android | Android 12 及以上 |
 | 处理器 | ARM64；客户机 CPU 通过 QEMU TCG 模拟，不要求 Root 或 KVM |
 | 内存 | 当前客户机配置使用 7 GiB；宿主还需为 Android、App 与翻译缓存保留余量 |
 | 存储 | 预留固件、解包镜像、构建产物与运行内存文件所需空间 |
