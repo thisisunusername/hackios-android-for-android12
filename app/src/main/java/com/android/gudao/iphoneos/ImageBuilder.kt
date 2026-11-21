@@ -58,7 +58,7 @@ class ImageBuilder(private val context: Context) {
      * compressing for minutes with nobody reading their output. */
     fun cancel() {
         val p = current ?: return
-        val pid = currentPid ?: -1L
+        val pid = currentPid
         p.destroyForcibly()
         if (pid > 0) killTree(pid)
         current = null

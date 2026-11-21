@@ -85,8 +85,10 @@ object FramePacer {
     /** 一行给人看的当前策略，写进 AppLog / MCP perf_stats。 */
     fun describe(intervalMs: Long): String = when {
         intervalMs >= BACKOFF_INTERVAL_MS -> "退避（guest 忙，避免 screendump 堆积）"
-        intervalMs >= IDLE_INTERVAL_MS -> "静止降频 1 FPS"
-        intervalMs >= BOOT_INTERVAL_MS -> "启动期 2 FPS（CPU 让给引导）"
+        // 0.29.8 起启动期与静止画面都是 1 FPS，BOOT_INTERVAL_MS 与 IDLE_INTERVAL_MS 相等
+        // （都是 1000ms）。只看间隔已经分不出「还在引导」还是「画面静止」，所以合并成一个标签，
+        // 不再让「启动期」分支永远走不到（FramePacerTest 的 describe covers every pace 会对住这里）。
+        intervalMs >= IDLE_INTERVAL_MS -> "启动期/静止 1 FPS（CPU 让给 guest）"
         else -> "活跃 ${(1000f / intervalMs).let { "%.0f".format(it) }} FPS"
     }
 }

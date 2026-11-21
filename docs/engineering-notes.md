@@ -15,7 +15,7 @@
 | Kotlin Compose 编译器插件 | 2.4.21 | 与 Glasmio 0.1.1 编译时使用的版本一致 |
 | compileSdk | 37 | `minCompileSdk=37`，见第 2 节 |
 | Build-Tools | 37.0.0 | 与 compileSdk 对齐 |
-| minSdk | 33 | Glasmio 强制，见第 3 节 |
+| minSdk | 31 | 定位 Android 12+；Glasmio 清单里的 33 用 overrideLibrary 放开，见第 3 节 |
 | targetSdk | 28 | SELinux 强制，见第 4 节 |
 
 启动命令（沙箱内实际使用，非 wrapper）：
@@ -64,21 +64,45 @@ Kotlin 版本同理：Glasmio 用 2.4.21 编译，Compose 编译器插件必须�
 
 ---
 
-## 3. 为什么 minSdk 必须是 33
+## 3. 为什么 minSdk 是 31（Android 12）
 
-Glasmio 的每个 AAR 自带 `minSdkVersion 33`。把它压到 30 会得到明确的合并失败（实测原文）：
+Glasmio 的每个 AAR 清单自带 `minSdkVersion 33`。把 app 的 minSdk 设成 31、又不做任何处理时，
+清单合并会直接失败（实测原文）：
 
 ```
-$ sed -i 's/minSdk = 33/minSdk = 30/' app/build.gradle.kts && gradle :app:processDebugMainManifest
+$ ./gradlew :app:processDebugMainManifest
 > Task :app:processDebugMainManifest FAILED
-uses-sdk:minSdkVersion 30 cannot be smaller than version 33 declared in library
+uses-sdk:minSdkVersion 31 cannot be smaller than version 33 declared in library
 [io.github.neoruaa.glasmio:glasmio-scaffold:0.1.1] ...
-Manifest merger failed : uses-sdk:minSdkVersion 30 cannot be smaller than version 33 ...
+Manifest merger failed : uses-sdk:minSdkVersion 31 cannot be smaller than version 33 ...
 ```
 
-这不是可以 `tools:overrideLibrary` 绕过的声明式限制：液态玻璃的折射层依赖 `RenderEffect`
-（API 31+）与 AGSL `RuntimeShader`（API 33+）的硬件加速合成路径，33 以下没有等价实现，绕过去
-只会得到一张不透明的灰底。所以 minSdk 33 是**能力下限**，不是偏好。
+但这只是清单声明，不是能力硬限制。反编译 `glasmio-glass:0.1.1` 的
+`io/github/neoruaa/glasmio/glass/render/PlatformKt.class` 可见两个运行期开关：
+
+```java
+isRenderEffectSupported  = Build.VERSION.SDK_INT >= 31
+isRuntimeShaderSupported = Build.VERSION.SDK_INT >= 33
+```
+
+`render/effects/RenderEffectKt` 的 `effect(...)` / `runtimeShaderEffect(...)` 在开关为 false 时
+直接 `return`，不会构造 AGSL 的 `RuntimeShader`。所以在 Android 12（API 31）与 12L（API 32）上：
+
+* `RenderEffect` 模糊可用（31 起就是平台 API）；
+* AGSL 折射/色散（`RuntimeShader`、`createRuntimeShaderEffect`）自动跳过；
+* 视觉上玻璃质感弱于 Android 13+，属于降级而非崩溃路径。
+
+因此 `app/src/main/AndroidManifest.xml` 用 `tools:overrideLibrary` 放开 6 个 glasmio 模块的清单：
+
+```xml
+<uses-sdk tools:overrideLibrary="io.github.neoruaa.glasmio.scaffold,io.github.neoruaa.glasmio.preference,io.github.neoruaa.glasmio.ui,io.github.neoruaa.glasmio.glass,io.github.neoruaa.glasmio.core,io.github.neoruaa.glasmio.icons" />
+```
+
+真正的下限仍以 `app/build.gradle.kts` 的 `minSdk = 31` 为准。
+
+**升级 Glasmio 时必须复查**：上面两个开关是否还在、阈值是否变了。如果新版本把开关删掉或改成
+无条件构造 `RuntimeShader`，Android 12 上会出现 `NoClassDefFoundError` 闪退，需要重新评估。
+31/32 的玻璃观感尚未逐屏真机验收。
 
 ---
 
@@ -101,18 +125,18 @@ Manifest merger failed : uses-sdk:minSdkVersion 30 cannot be smaller than versio
   访问 `Download/hackios`，这是老权限模型下的行为。
 * 部分 29+ 行为变更（后台启动限制、前台服务类型）不受新策略约束。
 
-**AGP 9.4.1 接受 `minSdk 33 > targetSdk 28` 这个反直觉组合**，合并结果实测：
+**AGP 9.4.1 接受 `minSdk 31 > targetSdk 28` 这个反直觉组合**，清单合并结果实测：
 
 ```
-$ aapt2 dump badging app/build/outputs/apk/debug/app-debug.apk | head -3
-package: name='com.android.gudao.iphoneos' versionCode='20' versionName='0.19.0'
-         compileSdkVersion='37' compileSdkVersionCodename='17'
-minSdkVersion:'33'
-targetSdkVersion:'28'
-native-code: 'arm64-v8a' 'x86_64'
+$ sed -n '1,20p' app/build/intermediates/merged_manifest/debug/processDebugMainManifest/AndroidManifest.xml
+<manifest ... package="com.android.gudao.iphoneos"
+    android:versionCode="51" android:versionName="0.30" >
+    <uses-sdk
+        android:minSdkVersion="31"
+        android:targetSdkVersion="28" />
 ```
 
-AGP 会给一条 `minSdkVersion (33) is greater than targetSdkVersion (28)` 的提示。这是预期内的，
+AGP 会给一条 `minSdkVersion (31) is greater than targetSdkVersion (28)` 的提示。这是预期内的，
 已在 `gradle.properties` 用 `android.sync.suppressAgpWarnings=MIN_SDK_VERSION_GREATER_THAN_TARGET_SDK`
 静音，避免真警告被噪音淹没。
 

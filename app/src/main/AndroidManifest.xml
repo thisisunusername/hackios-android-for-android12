@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Glasmio 的每个 AAR 在清单里写死 `minSdkVersion="33"`，但它的 API 33 专属能力
+         （AGSL / RuntimeShader / createRuntimeShaderEffect）在运行时由
+         PlatformKt.isRuntimeShaderSupported（SDK_INT >= 33）统一兜底，而 RenderEffect
+         路径只要求 SDK_INT >= 31。因此 31/32 上会自动退化为 RenderEffect 模糊，
+         不会调用不存在的 API。这里强制合并清单，让 APK 能装进 Android 12（API 31）；
+         真正的下限仍以 app/build.gradle.kts 的 minSdk = 31 为准。 -->
+    <uses-sdk tools:overrideLibrary="io.github.neoruaa.glasmio.scaffold,io.github.neoruaa.glasmio.preference,io.github.neoruaa.glasmio.ui,io.github.neoruaa.glasmio.glass,io.github.neoruaa.glasmio.core,io.github.neoruaa.glasmio.icons" />
 
     <!-- Needed to fetch the IPSW from Apple's CDN and to talk to the local QEMU QMP/monitor. -->
     <uses-permission android:name="android.permission.INTERNET" />

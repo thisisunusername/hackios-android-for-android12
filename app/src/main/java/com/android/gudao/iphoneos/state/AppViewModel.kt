@@ -683,11 +683,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                                 s.copy(
                                     build = BuildUi.Running(
                                         phase = phase,
-                                        detail = if (same) b?.detail.orEmpty() else "",
-                                        fraction = if (same) b?.fraction ?: 0f else BuildUi.Running.NO_PROGRESS,
+                                        detail = if (same) b.detail else "",
+                                        fraction = if (same) b.fraction else BuildUi.Running.NO_PROGRESS,
                                         stage = imageBuilder.stage,
                                         startedAtMs = b?.startedAtMs ?: now,
-                                        phaseStartedAtMs = if (same) b?.phaseStartedAtMs ?: now else now,
+                                        phaseStartedAtMs = if (same) b.phaseStartedAtMs else now,
                                     )
                                 )
                             }

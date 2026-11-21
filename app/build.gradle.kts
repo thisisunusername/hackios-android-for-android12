@@ -10,7 +10,10 @@ android {
 
     defaultConfig {
         applicationId = "com.android.gudao.iphoneos"
-        // Glasmio (iOS 27 Liquid Glass) requires API 33; the app is an Android 13+ deliverable.
+        // Glasmio 的 AAR 清单写死 minSdkVersion 33，但玻璃效果的 AGSL 能力在运行时由
+        // isRuntimeShaderSupported（SDK_INT >= 33）判断，31/32 会自动退回 RenderEffect
+        // 模糊路径（isRenderEffectSupported 只要求 31）。所以 minSdk 定为 31，用
+        // app/src/main/AndroidManifest.xml 里的 tools:overrideLibrary 放开清单合并。
         minSdk = 31
 
         // targetSdk 28 is deliberate and must not be raised. See docs/engineering-notes.md:
@@ -18,8 +21,8 @@ android {
         // carries a neverallow on executing files in the app home directory. The emulator runs
         // bash/python3/7zz/unzbm/qemu straight out of /data/user/0/<pkg>/files/run, so the app has
         // to stay in the untrusted_app_27 domain. Verified on the AGP 9.4.1 / compileSdk 37
-        // toolchain: minSdk 33 + targetSdk 28 is accepted and merges as
-        //   <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="28" />
+        // toolchain: minSdk 31 + targetSdk 28 is accepted and merges as
+        //   <uses-sdk android:minSdkVersion="31" android:targetSdkVersion="28" />
         targetSdk = 28
 
         // 0.28.0：合并外部项目调研的稳定性改动（FAST 作业集、virtio_net、宿主内存预检、
