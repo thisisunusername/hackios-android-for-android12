@@ -1084,7 +1084,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(qemu = QemuUi.Starting("检查 Adreno 与 Turnip", sinceEpochMs = diagBootAt)) }
                 try {
                     GpuRuntime.prepare(ctx, deployer.runDirectory())
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
+                    // 用 Throwable 而不是 Exception：NoSuchMethodError / UnsatisfiedLinkError 这类
+                    // Error 一旦漏出去就是整进程闪退（0.4.16 在 Android 12 上就是这么死的）。
                     if (e is CancellationException) throw e
                     if (fallBackToOsmesa(e.message ?: e.javaClass.simpleName)) {
                         backendIsAdreno = false
@@ -1100,7 +1102,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(qemu = QemuUi.Starting("准备独立 Adreno 根镜像", sinceEpochMs = diagBootAt)) }
                 try {
                     effectiveRoot = imageBuilder.prepareGpuRoot(root)
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     if (e is CancellationException) throw e
                     // Prepared 只是解包好的运行时目录，没有要关闭的句柄；退到 OSMesa 后它留着
                     // 不影响本次启动，下次切回 Adreno 还能直接用。

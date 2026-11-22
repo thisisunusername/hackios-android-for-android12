@@ -781,7 +781,9 @@ class ImageBuilder(private val context: Context) {
         check(current == null) { "请等待当前镜像构建结束" }
         if (!stableRoot.isFile || stableRoot.length() == 0L) throw BuildError("找不到 OSMesa 根镜像")
         val dylib = try {
-            context.assets.open(GPU_DYLIB_ASSET).use { it.readNBytes(2 * 1024 * 1024 + 1) }
+            context.assets.open(GPU_DYLIB_ASSET).use {
+                com.android.gudao.iphoneos.engine.IoCompat.readAtMost(it, 2 * 1024 * 1024 + 1)
+            }
         } catch (e: java.io.IOException) {
             throw BuildError("本安装包没有 Adreno 客体库，请改用 GPU 测试包", e)
         }

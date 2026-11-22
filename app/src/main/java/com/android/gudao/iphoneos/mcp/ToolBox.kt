@@ -305,7 +305,9 @@ class ToolBox(
         if (!file.isFile) return ToolResult.fail("不是文件：${rel(file)}")
         val max = a.optInt("max_bytes", 16_384).coerceIn(256, 65_536)
         val size = file.length()
-        val bytes = file.inputStream().use { it.readNBytes(max) }
+        val bytes = file.inputStream().use {
+            com.android.gudao.iphoneos.engine.IoCompat.readAtMost(it, max)
+        }
         if (bytes.take(4096).any { it == 0.toByte() }) {
             return ToolResult.ok("${rel(file)} 是二进制文件（$size 字节），未读取内容。")
         }
