@@ -57,11 +57,11 @@ jobs:
           # 0.4 换了 guest 内核（0.30 的 bcm2837 与 0.4 的 XNU 不是同一份），这里守住哈希，
           # 免得悄悄拿旧内核跑新镜像。
           check() { printf "%s  %s\n" "$2" "app/src/main/assets/$1" | sha256sum -c - ; }
-          check mach.development.bcm2837 7b1f908324fa1315
-          check QEMU_EFI.fd 5f8ef96257f27e28
-          check QEMU_VARS.fd 3b6a07d0
-          check qemu-android-bundle.zip 52f4d832
-          check hackios-toolchain.zip c8cb0793
+          check mach.development.bcm2837 7b1f908324fa13154c065f917555852406ddfbfc654f6c247c78c6d6a0644f17
+          check QEMU_EFI.fd 5f8ef96257f27e2815270bc54cbf6923bb344cbb5cd72be5b392c2ee4939181a
+          check QEMU_VARS.fd 3b6a07d0d404fab4e23b6d34bc6696a6a312dd92821332385e5af7c01c421351
+          check qemu-android-bundle.zip 52f4d8326fc4327f18af29b34cc63519b3630cea20899b06bb80e166b89e85dc
+          check hackios-toolchain.zip c8cb0793e0290cf55086858977652c0d75ab20f6974c823963807232efbf1670
           ls -lh app/src/main/assets
 
       - uses: android-actions/setup-android@v3
