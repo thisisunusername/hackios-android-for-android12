@@ -234,14 +234,20 @@ class McpHttpServerTest {
         assertTrue(server.running)
         server.stop()
         assertFalse(server.running)
+        // 内核在 close() 之后仍可能把已排进 accept backlog 的连接完成握手，CI 高负载时会偶发
+        // 连得通。这里按「最多等 2 秒，直到真的被拒」来判断，而不是只看紧接那一次 connect。
         var refused = false
-        try {
-            Socket("127.0.0.1", port).close()
-        } catch (_: ConnectException) {
-            refused = true
-        } catch (_: Throwable) {
-            refused = true
+        val deadline = System.nanoTime() + 2_000_000_000L
+        while (!refused && System.nanoTime() < deadline) {
+            try {
+                Socket("127.0.0.1", port).close()
+                Thread.sleep(20)
+            } catch (_: ConnectException) {
+                refused = true
+            } catch (_: Throwable) {
+                refused = true
+            }
         }
-        assertTrue("stop() 之后端口应不再接受连接", refused)
+        assertTrue("stop() 之后端口应不再接受连接（等了 2 秒仍可连）", refused)
     }
 }

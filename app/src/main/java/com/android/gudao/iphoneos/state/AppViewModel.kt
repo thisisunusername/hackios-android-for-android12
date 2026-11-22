@@ -963,7 +963,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val firstLog = runCatching { runner.qemuLog().readText().trim() }.getOrDefault("")
                 val firstSummary = runner.lastStartSummary
                 var retried = false
-                if ((firstExit == 1 || firstExit == 2) && !runner.serialLog().isFile) {
+                // esp-temp 自愈：这个 QEMU 移植版把 tmp 目录编译成了 Termux 前缀
+                // (/data/data/com.termux/files/usr/tmp)，vvfat 的 rw 模式要先在那里建临时文件，
+                // 本 App 无权 → 启动在 `-drive file=fat:rw:` 就 EACCES。换成只读 ESP（fat:ro）
+                // 不建临时文件，其余参数完全不变，所以只重试这一次就够。
+                if (firstLog.contains("Could not open temporary file", true)) {
+                    runCatching {
+                        File(deployer.runDirectory(), "qemu-first-attempt.log").writeText(
+                            "exit=$firstExit\n${firstLog.ifEmpty { "(qemu.log 为空)" }}\n$firstSummary\n"
+                        )
+                    }
+                    AppLog.w(TAG, "ESP 临时文件被拒（Termux tmp 不可写）：改只读 ESP 重试一次")
+                    retried = runCatching {
+                        kotlinx.coroutines.withContext(Dispatchers.IO) {
+                            runner.start(
+                                smp = smp,
+                                netEnabled = net,
+                                dnsServers = if (net) hostDnsServers() else emptyList(),
+                                extraFlags = extraFlags,
+                                mttcg = mttcg,
+                                hostCores = hostCores,
+                                espReadOnly = true,
+                            )
+                        }
+                    }.isSuccess
+                    if (retried) delay(BOOT_PROBE_MS)
+                }
+                if (!retried && (firstExit == 1 || firstExit == 2) && !runner.serialLog().isFile) {
                     runCatching {
                         File(deployer.runDirectory(), "qemu-first-attempt.log").writeText(
                             "exit=$firstExit\n${firstLog.ifEmpty { "(qemu.log 为空)" }}\n" +

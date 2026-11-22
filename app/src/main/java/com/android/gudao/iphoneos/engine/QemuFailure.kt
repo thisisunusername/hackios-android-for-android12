@@ -22,6 +22,12 @@ enum class QemuFailureKind {
     ProcessKilled,
     /** exit=139 / 134：QEMU 自己崩在 TCG 或内部 assert 上。 */
     QemuCrash,
+    /**
+     * QEMU 在 `-drive file=fat:rw:` 这一步要建临时文件，而这个 Termux 移植版的临时目录被
+     * 编译成 /data/data/com.termux/files/usr/tmp（本 App 无权写），于是启动即 EACCES。
+     * 处置：用只读 ESP 重试，不建临时文件。
+     */
+    EspTempDenied,
     Unknown,
 }
 
@@ -117,6 +123,27 @@ object QemuFailureClassifier {
         // 只有「QEMU 自己根本没起来」才能判成执行被拒：那种情况下链接器或 execve 会把二进制
         // 名字点到台面上。旧版把任意 exit==13 / 日志里任意 "Permission denied" 都算进来，于是
         // 访客系统内部的一次 EACCES 也会被写成「系统拒绝执行 QEMU」，把排查方向带偏。
+        // 必须在 ExecDenied 之前判：这条日志里既有 qemu-system-aarch64、又有 Permission denied，
+        // 会同时命中 ExecDenied 的正则，但矛盾的是「只有进程真的起来了，QEMU 才会去打这条 drive
+        // 参数」。这是 vvfat 要建临时文件、而 Termux 前缀的 tmp 不可写 —— 执行本身没被拒。
+        if (log.contains("Could not open temporary file", true) ||
+            (log.contains("vl.", true) && log.contains("com.termux/files/usr/tmp", true))
+        ) {
+            val line = log.lineSequence().map { it.trim() }.firstOrNull {
+                it.contains("Could not open temporary file", true)
+            }
+            return QemuFailure(
+                QemuFailureKind.EspTempDenied,
+                "QEMU 建不了临时文件（ESP 需要可写）",
+                line?.take(240) ?: "vvfat 在 rw 模式下需要临时文件，而它的临时目录被编译成 " +
+                    "/data/data/com.termux/files/usr/tmp，本 App 无权在该目录创建文件。",
+                "这不是执行被拒：QEMU 已经跑起来了，只是 `-drive file=fat:rw:` 要写临时文件。" +
+                    "点重试会用只读 ESP 启动（不建临时文件）；若 guest 必须写 ESP，再来找我换方案。",
+                retryable = true,
+                logTail = tail,
+            )
+        }
+
         val execDenied = exitCode == 126 ||
             // Java 侧 ProcessBuilder.start() 失败原文：Cannot run program "...": error=13, Permission denied
             (log.contains("Cannot run program", true) && log.contains("error=13", true)) ||

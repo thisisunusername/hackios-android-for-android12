@@ -231,6 +231,14 @@ class QemuRunner(private val runDir: File) {
         ramGb: Long = Constants.RAM_GB,
         /** TB 翻译缓存（MiB）；null 时按宿主算力池规格（默认 8 核 → 1360 MiB）。 */
         tbMiB: Int? = null,
+        /**
+         * ESP 以只读方式挂给 guest。默认 rw（与上游 run.sh 一致）；但 QEMU 的 `vvfat` 在 rw
+         * 模式下必须先建一个临时文件来承接写入，而这个 Termux 移植版把临时目录编译成了
+         * `/data/data/com.termux/files/usr/tmp`（见 exec-probe 的日志），本 App 无权创建 ——
+         * 于是启动在 `-drive file=fat:rw:…` 这一步就 EACCES 退出了。真实机上确认后由
+         * AppViewModel 用这个开关自动重试一次。
+         */
+        espReadOnly: Boolean = false,
     ) {
         val qemu = File(runDir, Constants.QEMU_BIN_REL)
         val libDir = File(runDir, Constants.QEMU_LIB_REL)
@@ -346,7 +354,15 @@ class QemuRunner(private val runDir: File) {
             }
             addAll(listOf("-drive", "if=pflash,format=raw,readonly=on,file=${File(runDir, Constants.ASSET_UEFI).absolutePath}"))
             addAll(listOf("-drive", "if=pflash,format=raw,file=${File(runDir, Constants.ASSET_VARS).absolutePath}"))
-            addAll(listOf("-drive", "file=fat:rw:${File(runDir, "esp").absolutePath},format=raw,if=virtio"))
+            addAll(
+                listOf(
+                    "-drive",
+                    // vvfat 只认 `fat:<dir>`（只读）与 `fat:rw:<dir>`（可写）两种写法，
+                    // `fat:ro:` 会被当成路径 "ro:/..." 而报 File name string must start with 'fat:'。
+                    "file=fat:${if (espReadOnly) "" else "rw:"}${File(runDir, "esp").absolutePath}," +
+                        "format=raw,if=virtio",
+                )
+            )
             addAll(listOf("-device", "loader,file=${File(runDir, "payload.bin").absolutePath},addr=0x${Constants.LOADER_ADDR.toString(16)},force-raw=on"))
             addAll(listOf("-object", "memory-backend-file,id=ram,size=${ramGb}G,mem-path=${File(runDir, "ram.img").absolutePath},share=off"))
             addAll(listOf("-machine", "memory-backend=ram"))
@@ -388,6 +404,13 @@ class QemuRunner(private val runDir: File) {
         if (libDir.isDirectory) {
             pb.environment()["LD_LIBRARY_PATH"] = libDir.absolutePath
         }
+        // 这个 QEMU 是 Termux 移植版：编译期就把 tmp 目录写成了 /data/data/com.termux/files/usr/tmp，
+        // 本 App 无权限。至少把能通过环境变量覆盖的临时目录（glib 的 g_get_tmp_dir 会读 TMPDIR）
+        // 指到自己的私有目录；剩下写死的路径只能靠 espReadOnly 绕开（见 start 的 espReadOnly 注释）。
+        val tmpDir = File(runDir, "tmp").apply { if (!isDirectory) mkdirs() }
+        pb.environment()["TMPDIR"] = tmpDir.absolutePath
+        pb.environment()["TMP"] = tmpDir.absolutePath
+        pb.environment()["TEMP"] = tmpDir.absolutePath
         // `-serial file:` 只有走到 chardev 初始化才会创建/截断 serial.log。若不清掉上一轮的文件，
         // 「serial.log 存在」会把「QEMU 在打开串口之前早退」误判成「串口已建立」，自愈重试
         // （0.29.2）也就永远不会触发。删除前先让调用方做完 EFI Shell 判定；删除后，
