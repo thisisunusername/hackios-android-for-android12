@@ -292,6 +292,7 @@ private fun Tabs(
                 ignoreStale = vm::ignoreStaleImages,
                 forceCleanup = vm::forceCleanup,
                 openMcpSettings = onOpenMcpSettings,
+                setGpuBackend = vm::setExperimentalGpu,
             ),
         )
 

@@ -44,15 +44,24 @@ jobs:
       # 仓库里 .gitignore 排除了 5 个二进制资产（qemu 包 / 工具链 / 内核 / UEFI / VARS），
       # 不补回来 APK 只有 ~80MB，装上去 AssetDeployer 会报资源缺失、QEMU 根本起不来。
       # 上游 v0.30 的 debug APK（~180MB）里正好带着这几份，直接从里面抽出来即可。
-      - name: Restore HackiOS binary assets from upstream APK
+      - name: Restore HackiOS 0.4 runtime assets from upstream APK
         run: |
           set -e
           mkdir -p app/src/main/assets
           curl -fL --retry 3 -o upstream.apk \
-            https://github.com/hmascs/hackios-android/releases/download/v0.30/HackiOS-0.30-debug.apk
-          for f in qemu-android-bundle.zip hackios-toolchain.zip mach.development.bcm2837 QEMU_EFI.fd QEMU_VARS.fd; do
+            https://github.com/hmascs/hackios-android/releases/download/v0.4/HackiOS-0.4.apk
+          for f in qemu-android-bundle.zip hackios-toolchain.zip mach.development.bcm2837 \
+                   QEMU_EFI.fd QEMU_VARS.fd hackios-scripts.zip loader.efi unzbm-probe.zip; do
             unzip -o -j upstream.apk "assets/$f" -d app/src/main/assets
           done
+          # 0.4 换了 guest 内核（0.30 的 bcm2837 与 0.4 的 XNU 不是同一份），这里守住哈希，
+          # 免得悄悄拿旧内核跑新镜像。
+          check() { printf "%s  %s\n" "$2" "app/src/main/assets/$1" | sha256sum -c - ; }
+          check mach.development.bcm2837 7b1f908324fa1315
+          check QEMU_EFI.fd 5f8ef96257f27e28
+          check QEMU_VARS.fd 3b6a07d0
+          check qemu-android-bundle.zip 52f4d832
+          check hackios-toolchain.zip c8cb0793
           ls -lh app/src/main/assets
 
       - uses: android-actions/setup-android@v3
@@ -70,11 +79,13 @@ jobs:
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
-      - name: Assemble debug APK
-        run: ./gradlew :app:assembleDebug
+      # -PgpuTest=true 才会把 remoteGL/Turnip 运行时（app/src/gpuTest/assets）打进包，
+      # 缺这个 flag 出来的是纯 OSMesa 软件包。
+      - name: Assemble debug APK (GPU test variant)
+        run: ./gradlew :app:assembleDebug -PgpuTest=true -PgpuAssetsDir="$PWD/app/src/gpuTest/assets"
 
-      - name: Assemble release APK (R8)
-        run: ./gradlew :app:assembleRelease
+      - name: Assemble release APK (R8, GPU test variant)
+        run: ./gradlew :app:assembleRelease -PgpuTest=true -PgpuAssetsDir="$PWD/app/src/gpuTest/assets"
 
       - name: Assemble androidTest APK
         run: ./gradlew :app:assembleDebugAndroidTest
@@ -119,12 +130,12 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.30.${{ github.run_number }}
-          name: HackiOS Android 12 · 0.30.${{ github.run_number }}
+          tag_name: v0.4.${{ github.run_number }}
+          name: HackiOS Android 12 · 0.4.${{ github.run_number }}
           body: |
-            自动构建的 debug APK（minSdk 31 / Android 12+，targetSdk 28）。
+            自动构建的 debug APK（基于上游 0.4 源码，minSdk 31 / Android 12+，targetSdk 28）。
 
-            安装：下载 app-debug.apk 后侧载即可，首次运行需要授予「所有文件访问」。
+            含实验性 Adreno GPU 后端（remoteGL + Turnip/Zink，需 Adreno 8xx；设备页「驱动」里切换，默认仍是 OSMesa）。首次运行需要授予「所有文件访问」。
           files: release/*.apk
           generate_release_notes: true
           make_latest: true

@@ -15,6 +15,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,6 +26,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.android.gudao.iphoneos.engine.GpuIdentity
 import com.android.gudao.iphoneos.engine.QemuFailureKind
 import com.android.gudao.iphoneos.state.AppUiState
 import com.android.gudao.iphoneos.state.BuildUi
@@ -44,6 +50,9 @@ import com.android.gudao.iphoneos.ui.theme.LocalIosAccents
 import io.github.neoruaa.glasmio.core.IosTypography
 import io.github.neoruaa.glasmio.glass.GlassEmphasis
 import com.android.gudao.iphoneos.ui.components.IosPinnedPage
+import com.android.gudao.iphoneos.ui.plain.GlasmioAlertButtonRole
+import com.android.gudao.iphoneos.ui.plain.GlasmioAlertButtonSpec
+import com.android.gudao.iphoneos.ui.plain.GlasmioAlertDialog
 import com.android.gudao.iphoneos.ui.plain.GlasmioButton
 import com.android.gudao.iphoneos.ui.plain.GlasmioGroupedList
 import com.android.gudao.iphoneos.ui.plain.GlasmioListRow
@@ -61,6 +70,8 @@ data class DeviceActions(
     val forceCleanup: () -> Unit,
     /** 顶栏的端口按钮：跳到设置页的 MCP 服务区块看地址、令牌与状态。 */
     val openMcpSettings: () -> Unit,
+    /** 系统渲染后端：true = Adreno（Turnip/Zink 直通 GPU），false = OSMesa 软件光栅化。 */
+    val setGpuBackend: (Boolean) -> Unit,
 )
 
 @Composable
@@ -253,6 +264,103 @@ fun DeviceScreen(
             }
         }
 
+        item { SectionLabel("驱动") }
+        item {
+            val adreno = state.settings.experimentalGpu
+            val gpu = state.gpu
+            var notice by remember { mutableStateOf<Pair<String, String>?>(null) }
+            GlasmioGroupedList {
+                GlasmioListRow(
+                    title = "OSMesa（CPU 软件光栅化）",
+                    subtitle = "任何设备都能跑，画面慢但最稳",
+                    leading = { IosGlyph(Glyph.Cpu, size = 20.dp, tint = accents.blue) },
+                    trailing = {
+                        if (!adreno) {
+                            IosGlyph(Glyph.Check, size = 18.dp, tint = accents.blue)
+                        }
+                    },
+                    showTopSeparator = false,
+                    onClick = if (adreno && !running) {
+                        { actions.setGpuBackend(false) }
+                    } else {
+                        null
+                    },
+                )
+                GlasmioListRow(
+                    title = "Adreno（Turnip + Zink 直通 GPU）",
+                    subtitle = when {
+                        !state.experimentalGpuAvailable -> "本 APK 未打入 GPU 运行时"
+                        gpu.family == GpuIdentity.Family.ADRENO_8XX ->
+                            "检测到 ${gpu.summary} · 固定 2 核，虚拟网络强制开启"
+                        else -> "需要高通 Adreno 8xx，本机识别为 ${gpu.summary}"
+                    },
+                    leading = { IosGlyph(Glyph.Cpu, size = 20.dp, tint = accents.purple) },
+                    trailing = {
+                        if (adreno) {
+                            IosGlyph(Glyph.Check, size = 18.dp, tint = accents.blue)
+                        }
+                    },
+                    onClick = if (!adreno && !running) {
+                        {
+                            when {
+                                !state.experimentalGpuAvailable -> notice =
+                                    "缺少 GPU 运行时" to
+                                        "当前 APK 是软件模拟版，没有随包携带 remoteGL/Turnip。" +
+                                        "请安装 GPU 测试包（构建时加 -PgpuTest=true）。"
+                                gpu.family != GpuIdentity.Family.ADRENO_8XX -> notice =
+                                    "这台设备不是 Adreno 8xx" to
+                                        ("识别结果：${gpu.summary}。" +
+                                            "该后端只支持高通 Adreno 8xx（830 已实测），其它 GPU 请留在 OSMesa。")
+                                !gpu.isTestedModel -> notice =
+                                    "Adreno ${gpu.model} 未实测" to
+                                        ("只有 830 做过实测，${gpu.model} 理论上同代可用但可能崩。" +
+                                            "继续请在黑屏/花屏时切回 OSMesa。")
+                                else -> actions.setGpuBackend(true)
+                            }
+                        }
+                    } else {
+                        null
+                    },
+                )
+            }
+            val tip = notice
+            if (tip != null) {
+                GlasmioAlertDialog(
+                    visible = true,
+                    onDismissRequest = { notice = null },
+                    title = tip.first,
+                    message = tip.second,
+                    buttons = listOf(
+                        GlasmioAlertButtonSpec(
+                            "知道了",
+                            { notice = null },
+                            GlasmioAlertButtonRole.Cancel,
+                        ),
+                        if (tip.first == "Adreno ${gpu.model} 未实测") {
+                            GlasmioAlertButtonSpec(
+                                "仍要启用",
+                                {
+                                    notice = null
+                                    actions.setGpuBackend(true)
+                                },
+                            )
+                        } else {
+                            GlasmioAlertButtonSpec("知道了", { notice = null })
+                        },
+                    ),
+                )
+            }
+        }
+        if (state.settings.experimentalGpu) {
+            item {
+                Text(
+                    "Adreno 后端会固定 2 核 MTTCG 并强制开启网络；启动中/运行中不可切换。",
+                    color = accents.purple.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
+                )
+            }
+        }
         item { SectionLabel("环境") }
         item {
             GlasmioGroupedList {
