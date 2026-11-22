@@ -250,7 +250,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val saved = settingsRepo.load()
         viewModelScope.launch(Dispatchers.IO) {
             val gpu = runCatching { GpuProbe.query() }.getOrDefault(com.android.gudao.iphoneos.engine.GpuIdentity())
-            val allowed = gpuAvailable && gpu.isAdreno8xx
+            val allowed = gpuAvailable && gpu.isAdreno
             val restore = allowed && saved.experimentalGpu
             if (!restore && saved.experimentalGpu) settingsRepo.setExperimentalGpu(false)
             _state.update {
@@ -259,7 +259,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     settings = it.settings.copy(experimentalGpu = restore),
                 )
             }
-            Log.i(TAG, "gpu: ${gpu.summary} source=${gpu.source} adreno8xx=${gpu.isAdreno8xx}")
+            Log.i(TAG, "gpu: ${gpu.summary} source=${gpu.source} adreno=${gpu.isAdreno} tested=${gpu.isTestedModel}")
         }
     }
 
@@ -279,8 +279,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * 系统渲染后端：true = Adreno（实验），false = OSMesa。
      *
-     * 只有「APK 自带运行时」且「本机 GPU 是 Adreno 8xx」才放行。8xx 里非 830 的机型在界面上
-     * 会先弹提示（理论上 8XX 通用，但只在 830 实测过），确认后才走到这里。
+     * 只有「APK 自带运行时」且「本机 GPU 是高通 Adreno（6xx/7xx/8xx）」才放行。非 830 的机型
+     * 在界面上会先弹提示（Turnip 覆盖 a6xx/a7xx，但只在 830 做过真机验收），确认后才走到这里。
      */
     fun setExperimentalGpu(value: Boolean) {
         if (hardwareLocked() || qemuJob?.isActive == true) return
@@ -290,8 +290,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 toast("当前安装包不含 Adreno 运行时", ToastMessage.Kind.Error)
                 return
             }
-            if (!gpu.isAdreno8xx) {
-                toast("Adreno 后端需要高通 Adreno 8xx（识别到 ${gpu.summary}）", ToastMessage.Kind.Error)
+            if (!gpu.isAdreno) {
+                toast("Adreno 后端需要高通 Adreno（6xx/7xx/8xx），识别到 ${gpu.summary}", ToastMessage.Kind.Error)
                 return
             }
         }

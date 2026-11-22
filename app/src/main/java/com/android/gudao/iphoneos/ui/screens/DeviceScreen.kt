@@ -290,9 +290,10 @@ fun DeviceScreen(
                     title = "Adreno（Turnip + Zink 直通 GPU）",
                     subtitle = when {
                         !state.experimentalGpuAvailable -> "本 APK 未打入 GPU 运行时"
-                        gpu.family == GpuIdentity.Family.ADRENO_8XX ->
-                            "检测到 ${gpu.summary} · 固定 2 核，虚拟网络强制开启"
-                        else -> "需要高通 Adreno 8xx，本机识别为 ${gpu.summary}"
+                        gpu.isAdreno && !gpu.isTestedModel ->
+                            "检测到 ${gpu.summary} · 未实测，可强行启用"
+                        gpu.isAdreno -> "检测到 ${gpu.summary} · 固定 2 核，虚拟网络强制开启"
+                        else -> "需要高通 Adreno（6xx/7xx/8xx），本机识别为 ${gpu.summary}"
                     },
                     leading = { IosGlyph(Glyph.Cpu, size = 20.dp, tint = accents.purple) },
                     trailing = {
@@ -307,14 +308,16 @@ fun DeviceScreen(
                                     "缺少 GPU 运行时" to
                                         "当前 APK 是软件模拟版，没有随包携带 remoteGL/Turnip。" +
                                         "请安装 GPU 测试包（构建时加 -PgpuTest=true）。"
-                                gpu.family != GpuIdentity.Family.ADRENO_8XX -> notice =
-                                    "这台设备不是 Adreno 8xx" to
+                                !gpu.isAdreno -> notice =
+                                    "这台设备不是高通 Adreno" to
                                         ("识别结果：${gpu.summary}。" +
-                                            "该后端只支持高通 Adreno 8xx（830 已实测），其它 GPU 请留在 OSMesa。")
+                                            "remoteGL 桥只挂了 freedreno 一条 Vulkan 驱动（Turnip），" +
+                                            "非 Adreno 的 GPU 请留在 OSMesa。")
                                 !gpu.isTestedModel -> notice =
                                     "Adreno ${gpu.model} 未实测" to
-                                        ("只有 830 做过实测，${gpu.model} 理论上同代可用但可能崩。" +
-                                            "继续请在黑屏/花屏时切回 OSMesa。")
+                                        ("上游只在高通 830（8xx）上做过真机验收。Turnip 的 a6xx/a7xx 后端" +
+                                            "在代码里是通的（642 属于 a6xx），但这条 remoteGL 桥没在 6xx 上跑过，" +
+                                            "可能出现黑屏、花屏或直接崩。跑不动就切回 OSMesa，切换不影响镜像。")
                                 else -> actions.setGpuBackend(true)
                             }
                         }
@@ -325,29 +328,28 @@ fun DeviceScreen(
             }
             val tip = notice
             if (tip != null) {
+                val confirmable = tip.first == "Adreno ${gpu.model} 未实测"
                 GlasmioAlertDialog(
                     visible = true,
                     onDismissRequest = { notice = null },
                     title = tip.first,
                     message = tip.second,
-                    buttons = listOf(
-                        GlasmioAlertButtonSpec(
-                            "知道了",
-                            { notice = null },
-                            GlasmioAlertButtonRole.Cancel,
-                        ),
-                        if (tip.first == "Adreno ${gpu.model} 未实测") {
+                    buttons = if (confirmable) {
+                        listOf(
+                            GlasmioAlertButtonSpec("取消", { notice = null }, GlasmioAlertButtonRole.Cancel),
                             GlasmioAlertButtonSpec(
                                 "仍要启用",
                                 {
                                     notice = null
                                     actions.setGpuBackend(true)
                                 },
-                            )
-                        } else {
-                            GlasmioAlertButtonSpec("知道了", { notice = null })
-                        },
-                    ),
+                            ),
+                        )
+                    } else {
+                        listOf(
+                            GlasmioAlertButtonSpec("知道了", { notice = null }, GlasmioAlertButtonRole.Cancel),
+                        )
+                    },
                 )
             }
         }

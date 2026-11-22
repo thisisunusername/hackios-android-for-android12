@@ -35,8 +35,17 @@ data class GpuIdentity(
         else -> Family.ADRENO_OTHER
     }
 
-    /** Adreno 8xx 系列：只有这一档才允许切到 Adreno 后端。 */
+    /** Adreno 8xx 系列（上游实测档）。 */
     val isAdreno8xx: Boolean get() = family == Family.ADRENO_8XX
+
+    /**
+     * 任意高通 Adreno（6xx / 7xx / 8xx）。
+     *
+     * Turnip 的 freedreno 后端本来就把 a6xx 一代覆盖在内（642 就属于 a6xx），上游只把 8xx 写成
+     * “支持”是因为 remoteGL 那条桥只在高通 830 上做过真机验收，不是 6xx 跑不起来。
+     * 所以门禁改成“是高通 Adreno 就放行，未实测型号二次确认”。
+     */
+    val isAdreno: Boolean get() = model != null
 
     /** 我们真正在真机上跑过、验收过的型号（830）。其它 8xx 只做提示，不阻挡。 */
     val isTestedModel: Boolean get() = model == TESTED_MODEL
@@ -47,7 +56,7 @@ data class GpuIdentity(
             source == Source.Unavailable && renderer.isBlank() -> "未能识别 GPU" + if (note.isBlank()) "" else "（$note）"
             source == Source.Unavailable -> "未能识别 GPU（${renderer}）"
             family == Family.ADRENO_8XX -> "Adreno $model · 高通 8xx 系列"
-            family == Family.ADRENO_OTHER -> "Adreno $model · 非 8xx"
+            family == Family.ADRENO_OTHER -> "Adreno $model · 高通 6xx/7xx 系列"
             else -> "${renderer.trim().ifBlank { "未知 GPU" }} · 非高通 Adreno"
         }
 

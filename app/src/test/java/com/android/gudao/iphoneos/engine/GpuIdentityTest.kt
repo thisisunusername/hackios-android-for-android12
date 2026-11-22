@@ -72,4 +72,12 @@ class GpuIdentityTest {
     fun `parse falls back to the vendor string when renderer is blank`() {
         assertEquals(830, GpuIdentity.parseAdrenoModel("", "Adreno (TM) 830"))
     }
+
+    @Test
+    fun `a6xx 也算 Adreno，可走未实测确认`() {
+        val g = GpuIdentity.of("Adreno (TM) 642", "Qualcomm", GpuIdentity.Source.Egl)
+        assertTrue("642 应当被放行到确认弹窗", g.isAdreno)
+        assertFalse("642 不是 8xx", g.isAdreno8xx)
+        assertFalse("642 未实测", g.isTestedModel)
+    }
 }
